@@ -1,0 +1,201 @@
+{
+  "name": "Inbound Voice - SKU Lookup",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sku-lookup",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-webhook-sku",
+      "name": "Webhook Inbound",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "sku-lookup-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "auth-check-id",
+              "leftValue": "={{ $json.headers['x-webhook-secret'] || $json.headers['X-Webhook-Secret'] || '' }}",
+              "rightValue": "={{ $env.WEBHOOK_SECRET || '' }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-check-auth",
+      "name": "Validate Auth Header",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"error\": \"Unauthorized: Missing or invalid X-Webhook-Secret header.\" } }}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "node-respond-unauth",
+      "name": "Respond Unauthorized",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [700, 480]
+    },
+    {
+      "parameters": {
+        "jsCode": "const __raw = $input.item.json.body || {};\nconst body = { ...__raw };\nfor (const __k in __raw) { const __v = __raw[__k]; if (__v && typeof __v === 'object' && !Array.isArray(__v)) Object.assign(body, __v); }\n\nconst rawQuery = (body.query || body.sku || body.name || '').toString().trim();\nif (!rawQuery) {\n  return { json: { hasQuery: false, query: '', cleanQuery: '', tokens: [], filter: 'sku.eq.__no_query__' } };\n}\n\nconst clean = rawQuery.replace(/[^a-zA-Z0-9\\s\\-_]/g, ' ').replace(/\\s+/g, ' ').trim();\nconst stop = new Set(['the','a','an','for','of','to','and','or','please','can','you','i','we','do','does','have','has','is','are','me','my','our','your','service','services','price','pricing','cost','costs','stock','availability','available','about','on','in','it','this','that','with','how','much','many','need','want','looking','check','tell','give','know','there','their','a']);\nlet tokens = clean.split(' ').filter(t => t.length >= 2 && !stop.has(t.toLowerCase()));\nif (tokens.length === 0) tokens = clean.split(' ').filter(Boolean);\n\nconst enc = s => encodeURIComponent(s);\nconst parts = [];\n// Full phrase first (best relevance), then any individual keyword.\nparts.push('sku.ilike.*' + enc(clean) + '*');\nparts.push('name.ilike.*' + enc(clean) + '*');\nfor (const t of tokens) {\n  parts.push('sku.ilike.*' + enc(t) + '*');\n  parts.push('name.ilike.*' + enc(t) + '*');\n}\nconst filter = 'or=(' + parts.join(',') + ')';\n\nreturn { json: { hasQuery: true, query: rawQuery, cleanQuery: clean, tokens, filter } };"
+      },
+      "id": "node-sanitize-query",
+      "name": "Sanitize Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL ? ($env.SUPABASE_URL + '/rest/v1/products_sku?' + $json.filter + '&is_active=eq.true&limit=1') : 'https://mock.supabase.local' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY || $env.SUPABASE_ANON_KEY || 'mock-key' }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + ($env.SUPABASE_SERVICE_ROLE_KEY || $env.SUPABASE_ANON_KEY || 'mock-key') }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": true,
+          "timeout": 2500
+        }
+      },
+      "id": "node-query-supabase",
+      "name": "Query Supabase Catalog",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 200],
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputData = $input.all();\nconst originalQuery = $('Sanitize Query').first().json.query || 'the item';\n\nlet product = null;\nif (inputData && inputData.length > 0 && inputData[0].json) {\n  if (Array.isArray(inputData[0].json) && inputData[0].json.length > 0) {\n    product = inputData[0].json[0];\n  } else if (inputData[0].json.sku) {\n    product = inputData[0].json;\n  }\n}\n\nif (product) {\n  const inStock = (product.stock_quantity || 0) > 0;\n  const priceStr = parseFloat(product.price || 0).toFixed(2);\n  const spoken = inStock\n    ? `Yes, we have ${product.name} in stock for $${priceStr}. We currently have ${product.stock_quantity} available.`\n    : `We carry ${product.name} for $${priceStr}, but it is currently out of stock. Would you like me to check when our next shipment arrives?`;\n\n  return {\n    json: {\n      found: true,\n      sku: product.sku,\n      name: product.name,\n      category: product.category || 'General',\n      price: parseFloat(product.price || 0),\n      currency: product.currency || 'USD',\n      in_stock: inStock,\n      quantity: product.stock_quantity || 0,\n      description: product.description || '',\n      spoken_summary: spoken\n    }\n  };\n} else {\n  return {\n    json: {\n      found: false,\n      query: originalQuery,\n      in_stock: false,\n      quantity: 0,\n      spoken_summary: `I checked our catalog, but I could not find a match for ${originalQuery}. Would you like me to check a different keyword or have a specialist call you back?`\n    }\n  };\n}"
+      },
+      "id": "node-format-response",
+      "name": "Format Voice Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1140, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "firstIncomingItem",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "node-respond-success",
+      "name": "Respond to Voice Agent",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1360, 200]
+    }
+  ],
+  "connections": {
+    "Webhook Inbound": {
+      "main": [
+        [
+          {
+            "node": "Validate Auth Header",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Auth Header": {
+      "main": [
+        [
+          {
+            "node": "Sanitize Query",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Unauthorized",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sanitize Query": {
+      "main": [
+        [
+          {
+            "node": "Query Supabase Catalog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Supabase Catalog": {
+      "main": [
+        [
+          {
+            "node": "Format Voice Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Voice Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Voice Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {}
+}

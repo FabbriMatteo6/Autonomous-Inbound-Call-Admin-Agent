@@ -1,0 +1,137 @@
+{
+  "name": "Acme Auto Care Autonomous Voice Assistant",
+  "description": "Production conversational AI agent for inbound telephony customer support, inventory lookups, and calendar scheduling.",
+  "conversation_config": {
+    "agent": {
+      "prompt": {
+        "prompt": "You are Alex, the friendly, professional, and articulate front-office coordinator at Acme Auto Care. Your mission is to assist callers with business questions, look up product/service inventory and pricing from our catalog, and schedule appointments on our calendar. Keep your answers concise, clear, and conversational (1-3 sentences per turn). Never leave dead air: always say a quick natural acknowledgment before invoking a tool.",
+        "knowledge_base": []
+      },
+      "first_message": "Thank you for calling Acme Auto Care! My name is Alex. How can I help you today?",
+      "language": "en"
+    },
+    "tts": {
+      "model_id": "eleven_turbo_v2_5",
+      "voice_id": "21m00Tcm4TlvDq8ikWAM",
+      "agent_output_audio_format": "ulaw_8000",
+      "stability": 0.65,
+      "similarity_boost": 0.8
+    },
+    "conversation": {
+      "max_duration_seconds": 300,
+      "client_events": [
+        "conversation_initiation_metadata",
+        "audio",
+        "interruption",
+        "user_transcript",
+        "agent_response"
+      ]
+    },
+    "tools": [
+      {
+        "name": "lookup_sku",
+        "type": "webhook",
+        "description": "Look up product inventory, stock status, pricing, and item descriptions from the business catalog using a product SKU code or product name keywords. Trigger whenever the caller asks about availability, price, or item specifications.",
+        "api_schema": {
+          "url": "https://{{NGROK_OR_DOMAIN}}/webhook/sku-lookup",
+          "method": "POST",
+          "request_headers": {
+            "Content-Type": "application/json",
+            "X-Webhook-Secret": "{{WEBHOOK_SECRET}}"
+          },
+          "request_body_schema": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string",
+                "description": "Product SKU code (e.g. SKU-1001) or product keywords (e.g. synthetic oil change, brake pads)."
+              }
+            },
+            "required": ["query"]
+          }
+        }
+      },
+      {
+        "name": "check_availability",
+        "type": "webhook",
+        "description": "Check open appointment slots on the business Google Calendar for a specific date. Trigger when the caller asks when appointments are available or requests a booking on a given date.",
+        "api_schema": {
+          "url": "https://{{NGROK_OR_DOMAIN}}/webhook/calendar-check",
+          "method": "POST",
+          "request_headers": {
+            "Content-Type": "application/json",
+            "X-Webhook-Secret": "{{WEBHOOK_SECRET}}"
+          },
+          "request_body_schema": {
+            "type": "object",
+            "properties": {
+              "date": {
+                "type": "string",
+                "format": "date",
+                "description": "Target date formatted as YYYY-MM-DD (e.g. 2026-09-20)."
+              },
+              "timezone": {
+                "type": "string",
+                "description": "Optional IANA timezone string (e.g. America/New_York)."
+              }
+            },
+            "required": ["date"]
+          }
+        }
+      },
+      {
+        "name": "book_appointment",
+        "type": "webhook",
+        "description": "Book a confirmed appointment on the business Google Calendar after checking availability and confirming customer details. Requires caller name, phone number, date, time, and service purpose.",
+        "api_schema": {
+          "url": "https://{{NGROK_OR_DOMAIN}}/webhook/calendar-book",
+          "method": "POST",
+          "request_headers": {
+            "Content-Type": "application/json",
+            "X-Webhook-Secret": "{{WEBHOOK_SECRET}}"
+          },
+          "request_body_schema": {
+            "type": "object",
+            "properties": {
+              "customer_name": { "type": "string", "description": "Customer full name." },
+              "customer_phone": { "type": "string", "description": "Customer contact telephone number." },
+              "date": { "type": "string", "format": "date", "description": "Appointment date formatted as YYYY-MM-DD." },
+              "time": { "type": "string", "description": "Desired appointment time (e.g. 03:00 PM)." },
+              "duration_minutes": { "type": "integer", "default": 60, "description": "Duration in minutes." },
+              "service": { "type": "string", "description": "Name of service or package requested." },
+              "notes": { "type": "string", "description": "Vehicle make/model or special caller instructions." }
+            },
+            "required": ["customer_name", "customer_phone", "date", "time"]
+          }
+        }
+      },
+      {
+        "name": "post_call_summary_logger",
+        "type": "webhook",
+        "description": "Asynchronous post-call webhook to persist caller metadata, duration, transcript, and detected intent into Supabase call_logs. Prefer wiring this as the ElevenLabs post-call webhook rather than an LLM tool.",
+        "api_schema": {
+          "url": "https://{{NGROK_OR_DOMAIN}}/webhook/call-summary-logger",
+          "method": "POST",
+          "request_headers": {
+            "Content-Type": "application/json",
+            "X-Webhook-Secret": "{{WEBHOOK_SECRET}}"
+          },
+          "request_body_schema": {
+            "type": "object",
+            "properties": {
+              "call_id": { "type": "string", "description": "Unique ElevenLabs/Twilio call SID." },
+              "caller_phone": { "type": "string", "description": "Caller phone number." },
+              "duration_seconds": { "type": "integer", "description": "Total call duration in seconds." },
+              "status": { "type": "string", "description": "completed, transferred, dropped, user_hangup." },
+              "intent": { "type": "string", "description": "sku_inquiry, appointment_booking, general_faq, other." },
+              "summary": { "type": "string", "description": "Concise 2-sentence summary." },
+              "transcript": { "type": "string", "description": "Full verbatim dialogue transcript." },
+              "tools_used": { "type": "array", "items": { "type": "string" }, "description": "Tool names invoked." }
+            },
+            "required": ["call_id", "status"]
+          }
+        }
+      }
+    ]
+  }
+}

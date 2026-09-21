@@ -1,0 +1,189 @@
+{
+  "name": "Inbound Voice - Call Summary Logger",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "call-summary-logger",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-webhook-logger",
+      "name": "Webhook Inbound",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "call-summary-logger-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "auth-check-logger-id",
+              "leftValue": "={{ $json.headers['x-webhook-secret'] || $json.headers['X-Webhook-Secret'] || '' }}",
+              "rightValue": "={{ $env.WEBHOOK_SECRET || '' }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-check-auth-logger",
+      "name": "Validate Auth Header",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"error\": \"Unauthorized: Missing or invalid X-Webhook-Secret header.\" } }}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "node-logger-unauth",
+      "name": "Respond Unauthorized",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [700, 480]
+    },
+    {
+      "parameters": {
+        "jsCode": "const __raw = $input.item.json.body || {};\nconst body = { ...__raw };\nfor (const __k in __raw) { const __v = __raw[__k]; if (__v && typeof __v === 'object' && !Array.isArray(__v)) Object.assign(body, __v); }\nconst callId = body.call_id || `call_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;\nconst callerPhone = body.caller_phone || 'Unknown Caller';\nconst durationSeconds = parseInt(body.duration_seconds || '0', 10);\nconst status = body.status || 'completed';\nconst intent = body.intent || 'general_inquiry';\nconst summary = body.summary || 'Inbound call recorded without explicit summary.';\nconst transcript = body.transcript || '';\nconst toolsUsed = Array.isArray(body.tools_used) ? body.tools_used : [];\n\nreturn {\n  json: {\n    call_id: callId,\n    caller_phone: callerPhone,\n    duration_seconds: durationSeconds,\n    status: status,\n    intent: intent,\n    summary: summary,\n    transcript: transcript,\n    tools_used: toolsUsed\n  }\n};"
+      },
+      "id": "node-parse-telemetry",
+      "name": "Parse Telemetry Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL ? ($env.SUPABASE_URL + '/rest/v1/call_logs') : 'https://mock.supabase.local' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY || $env.SUPABASE_ANON_KEY || 'mock-key' }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + ($env.SUPABASE_SERVICE_ROLE_KEY || $env.SUPABASE_ANON_KEY || 'mock-key') }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "allowUnauthorizedCerts": true,
+          "timeout": 3000
+        }
+      },
+      "id": "node-insert-supabase-log",
+      "name": "Insert Call Log to Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [940, 200],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"logged\": true, \"call_id\": $('Parse Telemetry Payload').first().json.call_id } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "node-respond-logger-success",
+      "name": "Respond Webhook Acknowledged",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1180, 200]
+    }
+  ],
+  "connections": {
+    "Webhook Inbound": {
+      "main": [
+        [
+          {
+            "node": "Validate Auth Header",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Auth Header": {
+      "main": [
+        [
+          {
+            "node": "Parse Telemetry Payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Unauthorized",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Telemetry Payload": {
+      "main": [
+        [
+          {
+            "node": "Insert Call Log to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Call Log to Supabase": {
+      "main": [
+        [
+          {
+            "node": "Respond Webhook Acknowledged",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {}
+}

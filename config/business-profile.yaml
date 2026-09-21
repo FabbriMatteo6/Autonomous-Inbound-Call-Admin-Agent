@@ -1,0 +1,52 @@
+# ==============================================================================
+# BUSINESS PROFILE — single source of truth for white-labeling this agent
+# ==============================================================================
+# Edit THIS file for a new client, then run:  python3 scripts/render_config.py
+# It regenerates the ElevenLabs prompt, agent config, and FAQ from these values.
+# Keep every text value in "quotes" (values contain spaces, colons and dashes).
+# ==============================================================================
+
+business:
+  name: "Acme Auto Care"
+  legal_name: "Acme Auto Care & Diagnostic Center"
+  tagline: "Trusted, honest, high-quality automotive care and scheduled maintenance."
+  industry: "automotive repair center"
+  persona_name: "Alex"
+  persona_role: "Front-Office Customer Coordinator & Scheduling Specialist"
+  phone: "(512) 555-0199"
+  address: "1234 Industrial Parkway, Suite 100, Austin, TX 78701"
+  website: "https://www.acmeautocare-example.com"
+  email: "service@acmeautocare-example.com"
+  timezone: "America/New_York"
+  currency: "USD"
+
+voice:
+  voice_id: "21m00Tcm4TlvDq8ikWAM"
+  model_id: "eleven_turbo_v2_5"
+  language: "en"
+  stability: 0.65
+  similarity_boost: 0.8
+
+# Shown to callers in the FAQ knowledge base.
+hours:
+  - "Monday - Friday: 8:00 AM - 6:00 PM"
+  - "Saturday: 8:30 AM - 3:00 PM"
+  - "Sunday: Closed"
+
+# Used by the calendar-check workflow to compute open slots.
+scheduling:
+  business_hours_start: "09:00"
+  business_hours_end: "17:00"
+  slots:
+    - "09:00 AM"
+    - "10:30 AM"
+    - "01:00 PM"
+    - "02:30 PM"
+    - "04:00 PM"
+
+payment:
+  methods:
+    - "Visa, MasterCard, American Express, Discover"
+    - "Apple Pay, Google Pay"
+    - "Cash and company checks (registered fleet accounts)"
+  policy: "No payment is taken over the phone; payment is settled in person at pickup."

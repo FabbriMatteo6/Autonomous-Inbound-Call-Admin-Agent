@@ -1,0 +1,67 @@
+{
+  "type": "webhook",
+  "name": "check_availability",
+  "description": "Check open appointment slots on the business Google Calendar for a specific date. Trigger when the caller asks when appointments are available or requests a booking on a given date.",
+  "disable_interruptions": false,
+  "interruption_mode": "allow",
+  "force_pre_tool_speech": false,
+  "pre_tool_speech": "auto",
+  "tool_call_sound": null,
+  "tool_call_sound_behavior": "auto",
+  "tool_error_handling_mode": "auto",
+  "execution_mode": "immediate",
+  "follow_redirects": false,
+  "follow_redirects_allowed_domains": [],
+  "api_schema": {
+    "url": "https://{{NGROK_OR_DOMAIN}}/webhook/calendar-check",
+    "method": "POST",
+    "path_params_schema": [],
+    "query_params_schema": [],
+    "request_body_schema": {
+      "id": "body",
+      "type": "object",
+      "description": "Flat request body. Do NOT nest fields inside a wrapper object.",
+      "properties": [
+        {
+          "id": "date",
+          "type": "string",
+          "value_type": "llm_prompt",
+          "description": "Target date formatted as YYYY-MM-DD (e.g. 2026-09-22).",
+          "dynamic_variable": "",
+          "constant_value": "",
+          "enum": null,
+          "required": true
+        },
+        {
+          "id": "timezone",
+          "type": "string",
+          "value_type": "llm_prompt",
+          "description": "Optional IANA timezone string (e.g. Europe/Rome).",
+          "dynamic_variable": "",
+          "constant_value": "",
+          "enum": null,
+          "required": false
+        }
+      ],
+      "required": true,
+      "value_type": "llm_prompt"
+    },
+    "request_headers": [
+      {
+        "type": "value",
+        "name": "X-Webhook-Secret",
+        "value": "{{WEBHOOK_SECRET}}"
+      }
+    ],
+    "content_type": "application/json",
+    "auth_connection": null,
+    "mtls_auth_connection": null,
+    "response_filter": null
+  },
+  "assignments": [],
+  "response_timeout_secs": 20,
+  "dynamic_variables": {
+    "dynamic_variable_placeholders": {}
+  },
+  "response_mocks": []
+}

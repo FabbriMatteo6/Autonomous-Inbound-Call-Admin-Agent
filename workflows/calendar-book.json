@@ -1,0 +1,193 @@
+{
+  "name": "Inbound Voice - Calendar Book Appointment",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "calendar-book",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-webhook-cal-book",
+      "name": "Webhook Inbound",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "cal-book-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "auth-check-book-id",
+              "leftValue": "={{ $json.headers['x-webhook-secret'] || $json.headers['X-Webhook-Secret'] || '' }}",
+              "rightValue": "={{ $env.WEBHOOK_SECRET || '' }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-check-auth-book",
+      "name": "Validate Auth Header",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"error\": \"Unauthorized: Missing or invalid X-Webhook-Secret header.\" } }}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "node-book-unauth",
+      "name": "Respond Unauthorized",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [700, 480]
+    },
+    {
+      "parameters": {
+        "jsCode": "const __raw = $input.item.json.body || {};\nconst body = { ...__raw };\nfor (const __k in __raw) { const __v = __raw[__k]; if (__v && typeof __v === 'object' && !Array.isArray(__v)) Object.assign(body, __v); }\n\nconst customerName = (body.customer_name || 'Valued Customer').trim();\nconst customerPhone = (body.customer_phone || '').trim();\nconst dateStr = (body.date || '').trim();\nconst timeStr = (body.time || '10:00 AM').trim();\nconst service = (body.service || 'General Service / Consultation').trim();\nconst notes = (body.notes || '').trim();\nconst durationMinutes = parseInt(body.duration_minutes || '60', 10);\nconst timeZone = (body.timezone || $env.BUSINESS_TIMEZONE || 'America/New_York');\nconst businessName = ($env.BUSINESS_NAME || 'Front Office');\n\n// Parse 12h or 24h time into 24h hour/minute\nlet hour = 10, minute = 0;\nconst m12 = timeStr.match(/(\\d{1,2}):(\\d{2})\\s*(AM|PM)?/i);\nif (m12) {\n  hour = parseInt(m12[1], 10); minute = parseInt(m12[2], 10);\n  const mer = (m12[3] || '').toUpperCase();\n  if (mer === 'PM' && hour < 12) hour += 12;\n  if (mer === 'AM' && hour === 12) hour = 0;\n} else {\n  const ms = timeStr.match(/(\\d{1,2})\\s*(AM|PM)/i);\n  if (ms) { hour = parseInt(ms[1], 10); if (ms[2].toUpperCase() === 'PM' && hour < 12) hour += 12; if (ms[2].toUpperCase() === 'AM' && hour === 12) hour = 0; }\n}\n\nconst pad = n => String(n).padStart(2, '0');\nconst [Y, Mo, D] = dateStr.split('-').map(x => parseInt(x, 10));\n\n// DST-aware offset (e.g. \"-04:00\") for the wall time in the target IANA zone.\nfunction offsetStr(y, mo, d, h, mi, tz) {\n  const wallAsUTC = Date.UTC(y, mo - 1, d, h, mi, 0);\n  const dtf = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });\n  const p = dtf.formatToParts(new Date(wallAsUTC)).reduce((a, x) => { a[x.type] = x.value; return a; }, {});\n  let hh = parseInt(p.hour, 10); if (hh === 24) hh = 0;\n  const tzAsUTC = Date.UTC(parseInt(p.year, 10), parseInt(p.month, 10) - 1, parseInt(p.day, 10), hh, parseInt(p.minute, 10), parseInt(p.second, 10));\n  const offMin = Math.round((tzAsUTC - wallAsUTC) / 60000);\n  const sign = offMin >= 0 ? '+' : '-';\n  const a = Math.abs(offMin);\n  return sign + pad(Math.floor(a / 60)) + ':' + pad(a % 60);\n}\n\nconst off = offsetStr(Y, Mo, D, hour, minute, timeZone);\nconst endTotal = hour * 60 + minute + durationMinutes;\nconst endH = Math.floor(endTotal / 60);\nconst endM = endTotal % 60;\n\nconst startDateTime = `${dateStr}T${pad(hour)}:${pad(minute)}:00${off}`;\nconst endDateTime = `${dateStr}T${pad(endH)}:${pad(endM)}:00${off}`;\n\nconst eventSummary = `${service} - ${customerName}`;\nconst eventDescription = `Automated Phone Booking - ${businessName}\\n` +\n  `- Customer Name: ${customerName}\\n` +\n  `- Contact Phone: ${customerPhone}\\n` +\n  `- Requested Service: ${service}\\n` +\n  `- Special Notes: ${notes || 'None'}\\n` +\n  `- Booked Via: Autonomous Inbound Call Admin Agent`;\n\nreturn {\n  json: {\n    customerName, customerPhone, dateStr, timeStr, service, notes, durationMinutes,\n    timeZone, startDateTime, endDateTime, eventSummary, eventDescription,\n    location: businessName\n  }\n};"
+      },
+      "id": "node-parse-booking",
+      "name": "Parse Booking Details",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 200]
+    },
+    {
+      "parameters": {
+        "calendar": "={{ $env.GOOGLE_CALENDAR_ID || 'primary' }}",
+        "start": "={{ $json.startDateTime }}",
+        "end": "={{ $json.endDateTime }}",
+        "additionalFields": {
+          "summary": "={{ $json.eventSummary }}",
+          "description": "={{ $json.eventDescription }}",
+          "location": "={{ $json.location }}",
+          "timezone": "={{ $json.timeZone }}"
+        }
+      },
+      "id": "node-create-gcal-event",
+      "name": "Create Google Calendar Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.2,
+      "position": [960, 200],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "G8rSWnSyealK5p15",
+          "name": "Google Calendar account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const bookingData = $('Parse Booking Details').first().json;\nconst gcalResult = $input.item.json;\n\n// Check if creation succeeded or had error\nconst hasError = !!(gcalResult.error || gcalResult.errorMessage);\nconst bookingId = gcalResult.id || `evt_local_${Date.now()}`;\n\nif (hasError) {\n  return {\n    json: {\n      success: false,\n      booking_id: null,\n      customer_name: bookingData.customerName,\n      date: bookingData.dateStr,\n      time: bookingData.timeStr,\n      spoken_summary: `I apologize, but I encountered an issue while finalizing the calendar reservation for ${bookingData.timeStr}. Could I please take your phone number for our team to call you right back to confirm?`\n    }\n  };\n}\n\nconst spoken = `All confirmed, ${bookingData.customerName}! I have scheduled your appointment for ${bookingData.service} on ${bookingData.dateStr} at ${bookingData.timeStr}. We look forward to seeing you!`;\n\nreturn {\n  json: {\n    success: true,\n    booking_id: bookingId,\n    customer_name: bookingData.customerName,\n    customer_phone: bookingData.customerPhone,\n    date: bookingData.dateStr,\n    time: bookingData.timeStr,\n    service: bookingData.service,\n    spoken_summary: spoken\n  }\n};"
+      },
+      "id": "node-format-book-response",
+      "name": "Format Booking Confirmation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "node-respond-book-success",
+      "name": "Respond to Voice Agent",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1440, 200]
+    }
+  ],
+  "connections": {
+    "Webhook Inbound": {
+      "main": [
+        [
+          {
+            "node": "Validate Auth Header",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Auth Header": {
+      "main": [
+        [
+          {
+            "node": "Parse Booking Details",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Unauthorized",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Booking Details": {
+      "main": [
+        [
+          {
+            "node": "Create Google Calendar Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Google Calendar Event": {
+      "main": [
+        [
+          {
+            "node": "Format Booking Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Booking Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Respond to Voice Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {}
+}

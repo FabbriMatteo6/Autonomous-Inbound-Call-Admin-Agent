@@ -1,0 +1,57 @@
+{
+  "type": "webhook",
+  "name": "lookup_sku",
+  "description": "Look up product/service inventory, stock, and pricing from the business catalog by SKU code or product name keywords. Trigger whenever the caller asks about availability, price, or details of an item or service.",
+  "disable_interruptions": false,
+  "interruption_mode": "allow",
+  "force_pre_tool_speech": false,
+  "pre_tool_speech": "auto",
+  "tool_call_sound": null,
+  "tool_call_sound_behavior": "auto",
+  "tool_error_handling_mode": "auto",
+  "execution_mode": "immediate",
+  "follow_redirects": false,
+  "follow_redirects_allowed_domains": [],
+  "api_schema": {
+    "url": "https://{{NGROK_OR_DOMAIN}}/webhook/sku-lookup",
+    "method": "POST",
+    "path_params_schema": [],
+    "query_params_schema": [],
+    "request_body_schema": {
+      "id": "body",
+      "type": "object",
+      "description": "Flat request body. Do NOT nest fields inside a wrapper object.",
+      "properties": [
+        {
+          "id": "query",
+          "type": "string",
+          "value_type": "llm_prompt",
+          "description": "SKU code (e.g. SKU-1001) or product/service keywords (e.g. synthetic oil change, brake pads).",
+          "dynamic_variable": "",
+          "constant_value": "",
+          "enum": null,
+          "required": true
+        }
+      ],
+      "required": true,
+      "value_type": "llm_prompt"
+    },
+    "request_headers": [
+      {
+        "type": "value",
+        "name": "X-Webhook-Secret",
+        "value": "{{WEBHOOK_SECRET}}"
+      }
+    ],
+    "content_type": "application/json",
+    "auth_connection": null,
+    "mtls_auth_connection": null,
+    "response_filter": null
+  },
+  "assignments": [],
+  "response_timeout_secs": 20,
+  "dynamic_variables": {
+    "dynamic_variable_placeholders": {}
+  },
+  "response_mocks": []
+}

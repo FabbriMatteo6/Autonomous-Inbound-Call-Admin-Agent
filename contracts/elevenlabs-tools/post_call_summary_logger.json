@@ -1,0 +1,135 @@
+{
+  "type": "webhook",
+  "name": "post_call_summary_logger",
+  "description": "Post-call webhook to persist caller metadata, duration, transcript, and detected intent into Supabase call_logs. Prefer wiring as the ElevenLabs post-call webhook rather than an LLM tool.",
+  "disable_interruptions": false,
+  "interruption_mode": "allow",
+  "force_pre_tool_speech": false,
+  "pre_tool_speech": "auto",
+  "tool_call_sound": null,
+  "tool_call_sound_behavior": "auto",
+  "tool_error_handling_mode": "auto",
+  "execution_mode": "immediate",
+  "follow_redirects": false,
+  "follow_redirects_allowed_domains": [],
+  "api_schema": {
+    "url": "https://{{NGROK_OR_DOMAIN}}/webhook/call-summary-logger",
+    "method": "POST",
+    "path_params_schema": [],
+    "query_params_schema": [],
+    "request_body_schema": {
+      "id": "body",
+      "type": "object",
+      "description": "Flat request body. Do NOT nest fields inside a wrapper object.",
+      "properties": [
+        {
+          "id": "call_id",
+          "type": "string",
+          "value_type": "llm_prompt",
+          "description": "Unique ElevenLabs/Twilio call SID.",
+          "dynamic_variable": "",
+          "constant_value": "",
+          "enum": null,
+          "required": true
+        },
+        {
+          "id": "caller_phone",
+          "type": "string",
+          "value_type": "llm_prompt",
+          "description": "Caller phone number.",
+          "dynamic_variable": "",
+          "constant_value": "",
+          "enum": null,
+          "required": false
+        },
+        {
+          "id": "duration_seconds",
+          "type": "integer",
+          "value_type": "llm_prompt",
+          "description": "Total call duration in seconds.",
+          "dynamic_variable": "",
+          "constant_value": "",
+          "enum": null,
+          "required": false
+        },
+        {
+          "id": "status",
+          "type": "string",
+          "value_type": "llm_prompt",
+          "description": "completed, transferred, dropped, user_hangup.",
+          "dynamic_variable": "",
+          "constant_value": "",
+          "enum": null,
+          "required": true
+        },
+        {
+          "id": "intent",
+          "type": "string",
+          "value_type": "llm_prompt",
+          "description": "sku_inquiry, appointment_booking, general_faq, other.",
+          "dynamic_variable": "",
+          "constant_value": "",
+          "enum": null,
+          "required": false
+        },
+        {
+          "id": "summary",
+          "type": "string",
+          "value_type": "llm_prompt",
+          "description": "Concise 2-sentence summary of call resolution.",
+          "dynamic_variable": "",
+          "constant_value": "",
+          "enum": null,
+          "required": false
+        },
+        {
+          "id": "transcript",
+          "type": "string",
+          "value_type": "llm_prompt",
+          "description": "Full verbatim dialogue transcript.",
+          "dynamic_variable": "",
+          "constant_value": "",
+          "enum": null,
+          "required": false
+        },
+        {
+          "id": "tools_used",
+          "type": "array",
+          "value_type": "llm_prompt",
+          "description": "List of tool names invoked during the conversation.",
+          "dynamic_variable": "",
+          "constant_value": "",
+          "enum": null,
+          "required": false,
+          "items": {
+            "type": "string",
+            "description": "Tool name.",
+            "value_type": "llm_prompt",
+            "constant_value": "",
+            "enum": null,
+            "dynamic_variable": null
+          }
+        }
+      ],
+      "required": true,
+      "value_type": "llm_prompt"
+    },
+    "request_headers": [
+      {
+        "type": "value",
+        "name": "X-Webhook-Secret",
+        "value": "{{WEBHOOK_SECRET}}"
+      }
+    ],
+    "content_type": "application/json",
+    "auth_connection": null,
+    "mtls_auth_connection": null,
+    "response_filter": null
+  },
+  "assignments": [],
+  "response_timeout_secs": 20,
+  "dynamic_variables": {
+    "dynamic_variable_placeholders": {}
+  },
+  "response_mocks": []
+}

@@ -1,0 +1,193 @@
+{
+  "name": "Inbound Voice - Calendar Check Availability",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "calendar-check",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-webhook-cal-check",
+      "name": "Webhook Inbound",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "cal-check-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "auth-check-cal-id",
+              "leftValue": "={{ $json.headers['x-webhook-secret'] || $json.headers['X-Webhook-Secret'] || '' }}",
+              "rightValue": "={{ $env.WEBHOOK_SECRET || '' }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-check-auth-cal",
+      "name": "Validate Auth Header",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"error\": \"Unauthorized: Missing or invalid X-Webhook-Secret header.\" } }}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "node-cal-unauth",
+      "name": "Respond Unauthorized",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [700, 480]
+    },
+    {
+      "parameters": {
+        "jsCode": "const __raw = $input.item.json.body || {};\nconst body = { ...__raw };\nfor (const __k in __raw) { const __v = __raw[__k]; if (__v && typeof __v === 'object' && !Array.isArray(__v)) Object.assign(body, __v); }\nlet targetDate = (body.date || '').trim();\n\n// If no date is passed, default to tomorrow\nif (!targetDate) {\n  const now = new Date();\n  now.setDate(now.getDate() + 1);\n  targetDate = now.toISOString().split('T')[0];\n}\n\nconst tz = body.timezone || $env.BUSINESS_TIMEZONE || 'America/New_York';\n\n// Business hours: 09:00 to 17:00\n// Fetch the whole day (UTC) so events in any timezone are captured.\nconst timeMin = `${targetDate}T00:00:00Z`;\nconst timeMax = `${targetDate}T23:59:59Z`;\n\nreturn {\n  json: {\n    targetDate,\n    timezone: tz,\n    timeMin,\n    timeMax\n  }\n};"
+      },
+      "id": "node-parse-date",
+      "name": "Parse Target Date",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 200]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": "={{ $env.GOOGLE_CALENDAR_ID || 'primary' }}",
+        "returnAll": true,
+        "options": {
+          "timeMin": "={{ $json.timeMin }}",
+          "timeMax": "={{ $json.timeMax }}",
+          "singleEvents": true
+        }
+      },
+      "id": "node-query-gcal",
+      "name": "Google Calendar Search",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.2,
+      "position": [920, 200],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "G8rSWnSyealK5p15",
+          "name": "Google Calendar account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const dateInfo = $('Parse Target Date').first().json;\nconst events = $input.all();\nconst targetDate = dateInfo.targetDate;\nconst tz = dateInfo.timezone || $env.BUSINESS_TIMEZONE || 'America/New_York';\nconst [Y, Mo, D] = targetDate.split('-').map(x => parseInt(x, 10));\nconst pad = n => String(n).padStart(2, '0');\n\n// DST-aware offset (e.g. \"-04:00\") for a wall time in the target IANA zone.\nfunction offsetStr(y, mo, d, h, mi, timeZone) {\n  const wallAsUTC = Date.UTC(y, mo - 1, d, h, mi, 0);\n  const dtf = new Intl.DateTimeFormat('en-US', { timeZone, hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });\n  const p = dtf.formatToParts(new Date(wallAsUTC)).reduce((a, x) => { a[x.type] = x.value; return a; }, {});\n  let hh = parseInt(p.hour, 10); if (hh === 24) hh = 0;\n  const tzAsUTC = Date.UTC(parseInt(p.year, 10), parseInt(p.month, 10) - 1, parseInt(p.day, 10), hh, parseInt(p.minute, 10), parseInt(p.second, 10));\n  const offMin = Math.round((tzAsUTC - wallAsUTC) / 60000);\n  const sign = offMin >= 0 ? '+' : '-';\n  const a = Math.abs(offMin);\n  return sign + pad(Math.floor(a / 60)) + ':' + pad(a % 60);\n}\n// Absolute ms for a wall-clock slot in the target timezone.\nfunction slotMs(h, mi) {\n  const off = offsetStr(Y, Mo, D, h, mi, tz);\n  return new Date(`${targetDate}T${pad(h)}:${pad(mi)}:00${off}`).getTime();\n}\n\n// Candidate slots from APPOINTMENT_SLOTS env (comma-separated labels), else defaults.\nconst slotEnv = ($env.APPOINTMENT_SLOTS || '').trim();\nconst slotLabels = slotEnv\n  ? slotEnv.split(',').map(s => s.trim()).filter(Boolean)\n  : ['09:00 AM', '10:30 AM', '01:00 PM', '02:30 PM', '04:00 PM'];\nconst candidateSlots = slotLabels.map(label => {\n  const m = label.match(/(\\d{1,2}):(\\d{2})\\s*(AM|PM)?/i);\n  let hour = 9, minute = 0;\n  if (m) {\n    hour = parseInt(m[1], 10); minute = parseInt(m[2], 10);\n    const mer = (m[3] || '').toUpperCase();\n    if (mer === 'PM' && hour < 12) hour += 12;\n    if (mer === 'AM' && hour === 12) hour = 0;\n  }\n  return { label, hour, minute };\n});\n\n// Busy intervals from real calendar events (absolute instants).\nconst busy = [];\nfor (const item of events) {\n  const evt = item.json;\n  if (evt && evt.start && (evt.start.dateTime || evt.start.date)) {\n    const s = new Date(evt.start.dateTime || evt.start.date).getTime();\n    const endRaw = (evt.end && (evt.end.dateTime || evt.end.date)) || evt.start.dateTime || evt.start.date;\n    busy.push({ start: s, end: new Date(endRaw).getTime() });\n  }\n}\n\nconst availableSlots = candidateSlots.filter(slot => {\n  const s = slotMs(slot.hour, slot.minute);\n  const e = s + 60 * 60 * 1000;\n  return !busy.some(b => (s < b.end && e > b.start));\n}).map(s => s.label);\n\nconst hasAvailability = availableSlots.length > 0;\nlet spokenSummary = '';\nif (hasAvailability) {\n  const slotsSpoken = availableSlots.slice(0, 4).join(', ');\n  spokenSummary = `On ${targetDate}, we have availability at ${slotsSpoken}. Which of those times works best for you?`;\n} else {\n  spokenSummary = `We are fully booked on ${targetDate}. Would you like me to check the following business day for openings?`;\n}\n\nreturn {\n  json: {\n    date: targetDate,\n    has_availability: hasAvailability,\n    available_slots: availableSlots,\n    timezone: tz,\n    spoken_summary: spokenSummary\n  }\n};"
+      },
+      "id": "node-calc-slots",
+      "name": "Compute Available Slots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1140, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "node-respond-cal-check",
+      "name": "Respond to Voice Agent",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1360, 200]
+    }
+  ],
+  "connections": {
+    "Webhook Inbound": {
+      "main": [
+        [
+          {
+            "node": "Validate Auth Header",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Auth Header": {
+      "main": [
+        [
+          {
+            "node": "Parse Target Date",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Unauthorized",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Target Date": {
+      "main": [
+        [
+          {
+            "node": "Google Calendar Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar Search": {
+      "main": [
+        [
+          {
+            "node": "Compute Available Slots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Available Slots": {
+      "main": [
+        [
+          {
+            "node": "Respond to Voice Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {}
+}

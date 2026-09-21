@@ -1,0 +1,26 @@
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Docker & runtime data
+n8n_data/
+*.log
+
+# Temporary test or scratch files
+scratch/
+tmp/
+temp/
+
+# Internal AI-development scaffolding — excluded from the public GitHub repo
+.agents/
+docs/agent-workflow/
+AGENTS.md
+README_AGENTS.md
+
+# Internal working audit (not part of the shipped product)
+docs/01 AUDIT/

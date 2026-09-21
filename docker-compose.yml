@@ -1,0 +1,49 @@
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: n8n_inbound_admin
+    restart: unless-stopped
+    ports:
+      - "${N8N_PORT:-5678}:5678"
+    environment:
+      # Network and URL configuration
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
+      - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE:-false}
+      # Set WEBHOOK_URL to your Ngrok public URL during development (e.g. https://xyz.ngrok-free.app/)
+      # or your production custom domain (e.g. https://n8n.yourcompany.com/)
+      - WEBHOOK_URL=${WEBHOOK_URL:-http://localhost:5678/}
+      
+      # Timezone configuration
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-America/New_York}
+      - TZ=${GENERIC_TIMEZONE:-America/New_York}
+      
+      # Operational settings
+      - N8N_METRICS=false
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=168
+      - EXECUTIONS_DATA_PRUNE_MAX_COUNT=50000
+      - N8N_PAYLOAD_SIZE_MAX=16
+      
+      # Custom environment variables for workflow execution
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-replace_with_secure_token}
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
+      - BUSINESS_TIMEZONE=${BUSINESS_TIMEZONE:-America/New_York}
+      - BUSINESS_NAME=${BUSINESS_NAME:-Acme Front Office}
+      - GOOGLE_CALENDAR_ID=${GOOGLE_CALENDAR_ID:-primary}
+      # Scheduling config (synced from config/business-profile.yaml by scripts/render_config.py)
+      - APPOINTMENT_SLOTS=${APPOINTMENT_SLOTS:-09:00 AM,10:30 AM,01:00 PM,02:30 PM,04:00 PM}
+      - BUSINESS_HOURS_START=${BUSINESS_HOURS_START:-09:00}
+      - BUSINESS_HOURS_END=${BUSINESS_HOURS_END:-17:00}
+
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./workflows:/opt/workflows:ro
+
+volumes:
+  n8n_data:
+    name: n8n_inbound_admin_data
