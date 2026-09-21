@@ -2,7 +2,7 @@
 
 - **Project:** Modular Local / Self-Hosted n8n Inbound Call Admin Agent
 - **Stack:** Twilio (Telephony) + ElevenLabs (Conversational Voice AI) + n8n (Workflow Orchestration) + Supabase (Product/SKU Database) + Google Calendar (Scheduling)
-- **Author:** Matteo Fabbri / Antigravity AI
+- **Author:** Matteo Fabbri
 - **Date:** September 19, 2026
 - **Status:** Complete / Decision-Ready
 

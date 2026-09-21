@@ -2,7 +2,7 @@
 
 - **Target Audience:** Systems Engineers, Solution Architects, DevOps, Business Automation Operators
 - **Version:** 1.0.0
-- **Author:** Matteo Fabbri / Antigravity AI
+- **Author:** Matteo Fabbri
 - **Last Updated:** 2026-09-19
 
 ---
