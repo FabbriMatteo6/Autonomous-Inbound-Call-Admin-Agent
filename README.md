@@ -70,8 +70,6 @@ flowchart LR
 │   ├── agent-prompt.md            # System prompt directives, tone, and tool rules
 │   └── business-faq-template.md   # Client FAQ for the ElevenLabs knowledge base
 └── docs/
-    ├── 01 AUDIT/
-    │   └── AS_IS.md               # Complete architecture, sequence diagrams & latency analysis
     ├── 02 PLAYBOOK/
     │   └── production-ops-runbook.md # Operations, Ngrok setup, prod deployment & troubleshooting
     └── 03 COMMERCIAL ANALYSIS/
@@ -254,7 +252,7 @@ docker compose restart n8n   # then toggle the workflow Active in the n8n UI, or
 
 ## 7. Documentation Map
 
-- **System Architecture & Data Flows:** [`docs/01 AUDIT/AS_IS.md`](docs/01%20AUDIT/AS_IS.md)
+- **System Architecture & Data Flows:** see the diagram in [Section 1](#1-system-overview) and the service inventory in the Operations & Production Runbook
 - **Operations & Production Runbook:** [`docs/02 PLAYBOOK/production-ops-runbook.md`](docs/02%20PLAYBOOK/production-ops-runbook.md)
 - **Commercial & Economic Analysis:** [`docs/03 COMMERCIAL ANALYSIS/commercial_analysis.md`](docs/03%20COMMERCIAL%20ANALYSIS/commercial_analysis.md)
 - **ElevenLabs Tool Definitions:** [`contracts/elevenlabs-tools/`](contracts/elevenlabs-tools/)
