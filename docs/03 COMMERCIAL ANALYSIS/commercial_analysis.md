@@ -17,10 +17,10 @@ Small and mid-sized businesses (SMBs)—such as medical/dental clinics, auto rep
 
 By leveraging an architecture composed of **Twilio**, **ElevenLabs Conversational AI**, self-hosted **n8n**, **Supabase Cloud**, and **Google Calendar**:
 - **Fixed Infrastructure Costs** are driven down to **~$10 to $28 per month** per business.
-- **Variable Call Costs** operate at **~$0.09 per minute** (yielding an effective cost of **$0.15 to $0.25 per completed call**).
+- **Variable Call Costs** operate at **~$0.09 per minute** (yielding an all-in effective cost of **$0.18 to $0.31 per completed call**, including amortised subscription).
 - **Labor Savings** recover **15 to 25 hours per week** of human administrative capacity per location.
 - **Revenue Recovery** captures an estimated **$1,200 to $4,500 per month** in otherwise lost after-hours appointments and sales conversions.
-- **Gross Margins** for commercializing this solution as a managed service range between **75% and 88%**.
+- **Gross Margins** for commercializing this solution as a managed service range between **~63% and 82%** (Starter 82%, Business 73%, Enterprise 63% at fully-utilised included volume).
 
 ---
 
@@ -32,7 +32,7 @@ The solution is purposefully designed to avoid proprietary monolithic platforms,
 flowchart LR
     Caller["Inbound Caller"] -->|PSTN Phone Call| Telephony["Telephony Gateway<br/>(Zadarma: $2/mo, $0/min | Twilio: $1.15/mo + $0.0085/min)"]
     Telephony -->|SIP / Audio Stream| ElevenLabs["ElevenLabs Conversational AI<br/>($0.08/min overage)"]
-    ElevenLabs -->|Tool Webhook (HTTP POST)| n8n["n8n Orchestration<br/>(Self-Hosted VPS $5/mo)"]
+    ElevenLabs -->|Tool Webhook (HTTP POST)| n8n["n8n Orchestration<br/>(Self-Hosted VPS $4-6/mo)"]
     n8n -->|Catalog / SKU Query| Supabase["Supabase DB<br/>(Free Tier $0/mo)"]
     n8n -->|Check / Book Slot| GCal["Google Calendar<br/>(Free OAuth2 $0/mo)"]
     n8n -->|Instant Response| ElevenLabs
@@ -47,7 +47,7 @@ flowchart LR
 | **Twilio (Alternative)** | Telephony (Phone number, PSTN routing) | ~$1.15 / mo + usage | **~$1.15 / mo** (US) + **$0.0085 / min** | Inbound rate billed in 60s increments ($0.015–$0.035/min for EU numbers). |
 | **ElevenLabs** | Real-time voice agent (STT + LLM + TTS) | $0 (Free Tier 15 min) | **$6.00 – $22.00 / mo** (Starter/Creator base) or **$0.0800 / min** overage | Starter includes 75 min ($6/mo); Creator includes 275 min ($22/mo); Pro includes 1,238 min ($99/mo). Overage is fixed at $0.08/min. |
 | **n8n Hosting** | Business logic, tool webhooks, API routing | $0 (Local Docker Compose) | **$4.00 – $6.00 / mo** (Hetzner CX23 / DigitalOcean VPS) | n8n Community Edition is fair-code / free to self-host. No per-workflow or execution fees. |
-| **Supabase** | Product SKU catalog, stock counts, call logs | $0 (Free Tier) | **$0.00 / mo** (Free Tier) | Free tier provides 500 MB DB storage (stores >50,000 SKUs), 50,000 monthly active rows, and 5 GB egress. |
+| **Supabase** | Product SKU catalog, stock counts, call logs | $0 (Free Tier) | **$0.00 / mo** (Free Tier) | Free tier provides 500 MB DB storage (stores >50,000 SKUs), 50,000 monthly active users, and 5 GB egress. Free projects pause after 7 days idle — not a concern under continuous call traffic. |
 | **Google Calendar** | Availability search & appointment insertion | $0 | **$0.00 / mo** | Google Calendar API is included with any Google Workspace or personal Google account. 1,000,000 queries/day. |
 | **Ingress / SSL** | Secure webhook exposure | $0 (Ngrok Free Tier) | **$0.00 / mo** (Direct domain + automated Let's Encrypt SSL via Caddy/Nginx) | Ngrok is eliminated in production; domain DNS A-record points to the VPS. |
 | **Total Fixed Overhead** | Base monthly operational baseline | **~$2.00 / mo** | **~$11.00 – $30.00 / mo** | Highly scalable with near-zero baseline commitment. |
@@ -91,9 +91,9 @@ xychart-beta
 
 | Operational Dimension | Status Quo 1: In-House Front-Office Staff | Status Quo 2: Outsourced Call Center (BPO) | Automated Inbound Call Admin Agent |
 | :--- | :--- | :--- | :--- |
-| **Direct Monthly Cost** | **$2,500 – $4,000 / mo** ($18–$25/hr + taxes, benefits, space) | **$600 – $1,200 / mo** ($1.25–$2.50 / minute or rigid call bundles) | **$30 – $100 / mo** (Usage-based infrastructure cost) |
+| **Direct Monthly Cost** | **$2,500 – $4,000 / mo** ($18–$25/hr + taxes, benefits, space) | **$600 – $1,200 / mo** ($1.25–$2.50 / minute or rigid call bundles) | **$31 – $450 / mo** (usage-based; ≈$96 at 500 calls/mo) |
 | **Hours of Coverage** | 40 hours/week (Mon–Fri, 9am–5pm). Zero night or weekend coverage. | Typically 24/7 or extended hours. | **168 hours/week (24/7/365)**. Zero downtime on holidays or nights. |
-| **Concurrent Call Capacity** | **1 call at a time** per staff member. Subsequent callers get busy signal or voicemail. | Shared operator pool (variable wait times, hold queues). | **Virtually unlimited concurrency** (50+ simultaneous calls answered on Ring 1). |
+| **Concurrent Call Capacity** | **1 call at a time** per staff member. Subsequent callers get busy signal or voicemail. | Shared operator pool (variable wait times, hold queues). | **High concurrency** — multiple simultaneous calls answered on Ring 1. Concurrency is plan-limited on ElevenLabs; large spikes need higher tiers or incur burst pricing (~$0.16/min). |
 | **Hold Times & Latency** | 30s to 5 minutes during peak walk-in / lunch hours. | 45s to 2 minutes in queue. | **< 1.0 second pickup**. Zero hold time. |
 | **Data Synchronization** | Manual data entry into CRM/Calendar; susceptible to typos and delays. | Operator takes notes, emails client; business must manually input later. | **Direct two-way synchronization** via n8n into Supabase & Google Calendar in real time. |
 | **Product Knowledge / SKUs** | Requires extensive onboarding; staff may give outdated pricing or stock. | Limited to generic script; cannot query live inventory databases. | **Instant live database query** against Supabase; 100% accurate on stock and price. |
@@ -105,7 +105,7 @@ xychart-beta
 ## 5. Productivity, Efficiency & Revenue Impact Analysis
 
 ### 1. Revenue Recovery (The Hidden Cost of Missed Calls)
-- **Industry Benchmark:** According to telecoms and CRM industry studies (Invoca, Zendesk), **67% of callers who reach a voicemail do not leave a message**; they hang up and dial the next competitor on Google search results.
+- **Industry Benchmark:** According to widely cited industry research (BIA/Kelsey), **67% of callers who reach a voicemail do not leave a message**; they hang up and dial the next competitor on Google search results. (Some later studies place this figure as high as ~86%.)
 - **Scenario Calculation for a Local Service Business (e.g., Dental, Auto Repair, Salon):**
   - Average Monthly Inbound Calls: 500
   - Missed Call Rate (After-hours, lunch, busy lines): 30% = 150 missed calls
@@ -133,7 +133,7 @@ xychart-beta
 
 ## 6. Commercial Packaging & Go-to-Market (GTM) Strategy
 
-If offering this solution as a commercial B2B product or AI automation service to local businesses, the following packages provide exceptional value to the client while securing high software gross margins (75%–85%).
+If offering this solution as a commercial B2B product or AI automation service to local businesses, the following packages provide exceptional value to the client while securing strong software gross margins (~63%–82%, by tier and utilisation).
 
 ### Recommended Client Pricing Tiers
 
@@ -150,7 +150,7 @@ flowchart TD
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Starter Concierge** | Boutique clinics, independent salons, solo consultants | **$199 / mo** | ~$35.00 | **+$164.00 / mo** | **82.4%** | 24/7 call answering, FAQ resolution, Google Calendar booking, SMS confirmation. |
 | **Business Growth** | Auto service centers, dental practices, specialty retailers | **$349 / mo** | ~$95.00 | **+$254.00 / mo** | **72.8%** | All Starter features + live Supabase SKU lookup + post-call transcript logging + call audio recordings. |
-| **Enterprise Custom** | Multi-location practices, high-volume contractors | **$599 / mo** | ~$180.00 | **+$419.00 / mo** | **69.9%** | High call volume, multi-calendar routing, priority uptime monitoring, custom prompt revisions. |
+| **Enterprise Custom** | Multi-location practices, high-volume contractors | **$599 / mo** | ~$220.00 | **+$379.00 / mo** | **63.3%** | High call volume, multi-calendar routing, priority uptime monitoring, custom prompt revisions. |
 
 ### Additional Revenue Streams
 1. **One-Time Implementation & Setup Fee:**
@@ -175,10 +175,10 @@ flowchart TD
 
 | Financial Metric | Traditional Receptionist | Inbound Call Admin Agent | Net Advantage |
 | :--- | :--- | :--- | :--- |
-| **Annual Operating Cost** | $30,000 – $45,000 / year | **$1,140 – $2,600 / year** | **94% – 97% Cost Reduction** |
+| **Annual Operating Cost** | $30,000 – $45,000 / year | **$370 – $5,400 / year** (by call volume) | **~82% – 99% Cost Reduction** |
 | **Missed Call Rate** | 30% – 50% | **< 1%** | **Near-Complete Capture** |
 | **Availability** | 40 hours/week | **168 hours/week** | **+320% Increased Availability** |
 | **Estimated Net ROI** | Baseline overhead | **10x to 25x ROI** (via recovered revenue + labor efficiency) | **Immediate Positive Payback** |
 
 **Final Recommendation:**
-The project represents an exceptional asymmetric investment: technical implementation costs and operating overhead are negligible (<$100/mo), while operational productivity gains and revenue capture exceed $2,000–$4,000/month per business. The modular architecture (separating voice, logic, and database) ensures long-term viability, portability, and high commercial margins.
+The project represents an exceptional asymmetric investment: technical implementation costs and operating overhead are modest ($30–$450/mo depending on call volume), while operational productivity gains and revenue capture exceed $2,000–$4,000/month per business. The modular architecture (separating voice, logic, and database) ensures long-term viability, portability, and high commercial margins.
