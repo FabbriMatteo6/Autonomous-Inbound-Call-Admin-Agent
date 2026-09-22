@@ -30,9 +30,9 @@ The solution is purposefully designed to avoid proprietary monolithic platforms,
 
 ```mermaid
 flowchart LR
-    Caller["Inbound Caller"] -->|PSTN Phone Call| Telephony["Telephony Gateway<br/>(Zadarma: $2/mo, $0/min | Twilio: $1.15/mo + $0.0085/min)"]
-    Telephony -->|SIP / Audio Stream| ElevenLabs["ElevenLabs Conversational AI<br/>($0.08/min overage)"]
-    ElevenLabs -->|Tool Webhook (HTTP POST)| n8n["n8n Orchestration<br/>(Self-Hosted VPS $4-6/mo)"]
+    Caller["Inbound Caller"] -->|PSTN Phone Call| Telephony["Telephony Gateway<br/>Zadarma $2/mo $0/min; Twilio $1.15/mo + $0.0085/min"]
+    Telephony -->|SIP / Audio Stream| ElevenLabs["ElevenLabs Conversational AI<br/>$0.08/min overage"]
+    ElevenLabs -->|Tool Webhook HTTP POST| n8n["n8n Orchestration<br/>Self-Hosted VPS $4-6/mo"]
     n8n -->|Catalog / SKU Query| Supabase["Supabase DB<br/>(Free Tier $0/mo)"]
     n8n -->|Check / Book Slot| GCal["Google Calendar<br/>(Free OAuth2 $0/mo)"]
     n8n -->|Instant Response| ElevenLabs
